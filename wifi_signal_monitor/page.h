@@ -299,6 +299,10 @@ const char* INDEX_HTML = R"HTML(
           <option value="60000">60s</option>
         </select>
       </div>
+      <div class="settings-info">
+        <span class="settings-info-label">SD card</span>
+        <span class="settings-info-value" id="sdStatus">-</span>
+      </div>
       <button id="forgetBtn">Forget Wi-Fi</button>
     </div>
   </div>
@@ -394,6 +398,9 @@ const char* INDEX_HTML = R"HTML(
         if (document.activeElement !== intervalSelect) {
           intervalSelect.value = String(d.logIntervalMs);
         }
+        const sdStatus = document.getElementById('sdStatus');
+        sdStatus.textContent = d.sdOk ? 'OK' : 'Not available';
+        sdStatus.style.color = d.sdOk ? 'var(--good)' : 'var(--bad)';
 
         const rssiBar = document.getElementById('rssiBar');
         const pill = document.getElementById('rssiStatus');

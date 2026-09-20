@@ -45,6 +45,10 @@ const size_t MAX_LOG_BYTES = 2UL * 1024 * 1024;
 WebServer server(80);
 Preferences wifiPrefs;
 bool sdAvailable = false;
+// sdAvailable only reflects the boot-time mount/mkdir check; this tracks
+// whether the most recent log write actually succeeded, so a card pulled
+// or failing mid-session shows up in /data instead of failing silently.
+bool sdWriteOk = true;
 
 // One log file per SSID, so switching networks doesn't mix their readings
 // together. Set once at boot after WiFi connects (see setLogPathsForSsid).
@@ -277,7 +281,23 @@ String sanitizeForFilename(const String &ssid) {
   while (out.length() > 0 && (out[out.length() - 1] == ' ' || out[out.length() - 1] == '.')) {
     out.remove(out.length() - 1);
   }
-  if (out.length() == 0) out = "wifi";
+  bool changed = (out != ssid);
+  if (out.length() == 0) { out = "wifi"; changed = true; }
+  if (changed) {
+    // Sanitizing can make two different SSIDs collide on the same name
+    // (e.g. "Home/Net" and "Home:Net" both become "Home_Net"), silently
+    // merging their logs. Append a short hash of the original SSID so
+    // they still land in distinct files. Plain SSIDs (the common case,
+    // needing no sanitizing) are left exactly as before.
+    uint32_t h = 2166136261u; // FNV-1a
+    for (size_t i = 0; i < ssid.length(); i++) {
+      h ^= (uint8_t)ssid[i];
+      h *= 16777619u;
+    }
+    char suffix[7];
+    snprintf(suffix, sizeof(suffix), "_%04x", (unsigned)(h & 0xFFFF));
+    out += suffix;
+  }
   return out;
 }
 
@@ -347,10 +367,11 @@ void logReading() {
   strncpy(lastTimestamp, ts, sizeof(lastTimestamp));
 
   File f = SD.open(logPath, FILE_APPEND);
-  if (!f) return;
+  if (!f) { sdWriteOk = false; return; }
   f.printf("%s,%d\n", ts, lastRssi);
   size_t sizeAfterWrite = f.size();
   f.close();
+  sdWriteOk = true;
 
   if (sizeAfterWrite > MAX_LOG_BYTES) rotateLog();
 }
@@ -437,6 +458,8 @@ void handleData() {
   json += (WiFi.status() == WL_CONNECTED) ? "true" : "false";
   json += ",\"logIntervalMs\":";
   json += logIntervalMs;
+  json += ",\"sdOk\":";
+  json += (sdAvailable && sdWriteOk) ? "true" : "false";
   json += "}";
 
   server.send(200, "application/json", json);
