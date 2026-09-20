@@ -112,8 +112,18 @@ const char* INDEX_HTML = R"HTML(
       border-bottom: 1px solid var(--border);
       margin-bottom: 16px;
     }
-    .settings-info-label { color: var(--muted); }
-    .settings-info-value { font-weight: 700; }
+    .settings-info-label { color: var(--ink); font-weight: 600; }
+    .settings-info-value { font-weight: 800; font-size: 1.05em; color: var(--ink); }
+    .interval-select {
+      font-family: inherit;
+      font-size: 1.05em;
+      font-weight: 800;
+      color: var(--ink);
+      -webkit-text-fill-color: var(--ink);
+      background: transparent;
+      border: none;
+      text-align: right;
+    }
     .close-btn {
       background: none;
       border: none;
@@ -175,7 +185,9 @@ const char* INDEX_HTML = R"HTML(
     .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
 
     .section-head { display: flex; align-items: baseline; justify-content: space-between; margin: 22px 0 10px; }
+    .section-title-group { display: flex; align-items: baseline; gap: 6px; }
     .section-head h2 { font-size: 1.05em; font-weight: 800; margin: 0; }
+    .section-head .interval-note { color: var(--ink); font-weight: 700; font-size: 0.85em; }
     .section-head .range-note { color: var(--muted); font-size: 0.8em; }
 
     .range-picker {
@@ -250,7 +262,10 @@ const char* INDEX_HTML = R"HTML(
     </div>
 
     <div class="section-head">
-      <h2>Signal history</h2>
+      <div class="section-title-group">
+        <h2>Signal history</h2>
+        <span class="interval-note">- Interval: <span id="intervalHeader">60</span>s</span>
+      </div>
       <span class="range-note" id="rangeLabel">last 1h</span>
     </div>
     <div class="range-picker">
@@ -263,7 +278,7 @@ const char* INDEX_HTML = R"HTML(
     </div>
     <div class="card chart-box"><canvas id="chart"></canvas></div>
 
-    <div class="footer">Cardputer Adv &middot; ESP32-S3 &middot; readings every ~60s</div>
+    <div class="footer">Cardputer Adv &middot; ESP32-S3</div>
   </div>
 
   <div class="settings-overlay" id="settingsOverlay">
@@ -275,6 +290,14 @@ const char* INDEX_HTML = R"HTML(
       <div class="settings-info">
         <span class="settings-info-label">Cardputer's IP address</span>
         <span class="settings-info-value" id="ipAddr">-</span>
+      </div>
+      <div class="settings-info">
+        <span class="settings-info-label">Logging interval</span>
+        <select id="intervalSelect" class="interval-select">
+          <option value="10000">10s</option>
+          <option value="30000">30s</option>
+          <option value="60000">60s</option>
+        </select>
       </div>
       <button id="forgetBtn">Forget Wi-Fi</button>
     </div>
@@ -366,6 +389,11 @@ const char* INDEX_HTML = R"HTML(
         document.getElementById('ts').textContent = formatTs(d.ts);
         document.getElementById('ssid').textContent = d.ssid;
         document.getElementById('ipAddr').textContent = d.ip;
+        document.getElementById('intervalHeader').textContent = Math.round(d.logIntervalMs / 1000);
+        const intervalSelect = document.getElementById('intervalSelect');
+        if (document.activeElement !== intervalSelect) {
+          intervalSelect.value = String(d.logIntervalMs);
+        }
 
         const rssiBar = document.getElementById('rssiBar');
         const pill = document.getElementById('rssiStatus');
@@ -452,6 +480,16 @@ const char* INDEX_HTML = R"HTML(
     document.getElementById('settingsBtn').onclick = () => settingsOverlay.classList.add('open');
     document.getElementById('closeSettings').onclick = () => settingsOverlay.classList.remove('open');
     settingsOverlay.onclick = (e) => { if (e.target === settingsOverlay) settingsOverlay.classList.remove('open'); };
+
+    document.getElementById('intervalSelect').onchange = async (e) => {
+      try {
+        await fetch('/interval', {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': CSRF_TOKEN, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'ms=' + e.target.value
+        });
+      } catch (err) {}
+    };
 
     document.getElementById('forgetBtn').onclick = async () => {
       if (!confirm('Forget saved WiFi credentials and restart into setup mode?')) return;

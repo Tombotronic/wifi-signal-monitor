@@ -31,7 +31,12 @@ const char* TZ_INFO = "CET-1CEST,M3.5.0,M10.5.0/3";
 #define SD_MISO 39
 
 const char* LOG_DIR = "/wifi_signal_monitor";
-const unsigned long LOG_INTERVAL_MS = 60UL * 1000UL; // 1 minute
+const unsigned long DEFAULT_LOG_INTERVAL_MS = 60UL * 1000UL; // 1 minute
+const unsigned long MIN_LOG_INTERVAL_MS = 5UL * 1000UL;
+const unsigned long MAX_LOG_INTERVAL_MS = 3600UL * 1000UL; // 1 hour
+// Adjustable at runtime from the web dashboard's settings panel (POST
+// /interval) and persisted to flash; starts at the default until loaded.
+unsigned long logIntervalMs = DEFAULT_LOG_INTERVAL_MS;
 // At 1 reading/minute a line is ~20 bytes, so this caps the log to roughly
 // 70 days of history and keeps /history (which always streams the whole
 // file) fast indefinitely instead of growing without bound.
@@ -81,6 +86,24 @@ void clearWifiCreds() {
   wifiPrefs.begin("wifi", false);
   wifiPrefs.clear();
   wifiPrefs.end();
+}
+
+// Saved logging interval lives in NVS flash (namespace "settings"), same
+// mechanism as the WiFi credentials, so it survives a reboot.
+Preferences settingsPrefs;
+
+unsigned long loadLogIntervalMs() {
+  settingsPrefs.begin("settings", true); // read-only
+  unsigned long ms = settingsPrefs.getULong("logMs", DEFAULT_LOG_INTERVAL_MS);
+  settingsPrefs.end();
+  if (ms < MIN_LOG_INTERVAL_MS || ms > MAX_LOG_INTERVAL_MS) ms = DEFAULT_LOG_INTERVAL_MS;
+  return ms;
+}
+
+void saveLogIntervalMs(unsigned long ms) {
+  settingsPrefs.begin("settings", false);
+  settingsPrefs.putULong("logMs", ms);
+  settingsPrefs.end();
 }
 
 void generateCsrfToken() {
@@ -359,6 +382,28 @@ void handleIcon() {
   server.send_P(200, "image/png", (const char*)ICON_PNG, ICON_PNG_LEN);
 }
 
+void handleSetInterval() {
+  if (server.header("X-CSRF-Token") != csrfToken) {
+    server.send(403, "text/plain", "Forbidden");
+    return;
+  }
+  if (!server.hasArg("ms")) {
+    server.send(400, "text/plain", "Missing ms");
+    return;
+  }
+  // Reject out-of-range values server-side (not just in the dashboard's
+  // dropdown) so a stray/hostile LAN request can't hammer the SD card with
+  // a near-zero interval or set something absurdly slow.
+  long ms = server.arg("ms").toInt();
+  if (ms < (long)MIN_LOG_INTERVAL_MS || ms > (long)MAX_LOG_INTERVAL_MS) {
+    server.send(400, "text/plain", "Out of range");
+    return;
+  }
+  logIntervalMs = (unsigned long)ms;
+  saveLogIntervalMs(logIntervalMs);
+  server.send(200, "text/plain", "OK");
+}
+
 // Escapes a string for safe embedding inside a JSON string literal.
 // Only SSID needs this (timestamps/IPs are generated in known-safe formats),
 // but it's applied generically since it's cheap and SSIDs are free-form
@@ -390,6 +435,8 @@ void handleData() {
   json += ssidEscaped;
   json += "\",\"connected\":";
   json += (WiFi.status() == WL_CONNECTED) ? "true" : "false";
+  json += ",\"logIntervalMs\":";
+  json += logIntervalMs;
   json += "}";
 
   server.send(200, "application/json", json);
@@ -412,6 +459,8 @@ void handleHistory() {
 void setup() {
   auto cfg = M5.config();
   M5Cardputer.begin(cfg, true); // true = enable keyboard
+
+  logIntervalMs = loadLogIntervalMs();
 
   M5.Display.setRotation(1);
   M5.Display.setTextSize(2);
@@ -495,6 +544,7 @@ void setup() {
   server.on("/history", handleHistory);
   server.on("/icon.png", handleIcon);
   server.on("/forget", HTTP_POST, handleForget);
+  server.on("/interval", HTTP_POST, handleSetInterval);
   server.begin();
 
   logReading(); // first reading immediately
@@ -631,7 +681,7 @@ void loop() {
   }
 
   bool loggedNow = false;
-  if (millis() - lastLogMs >= LOG_INTERVAL_MS) {
+  if (millis() - lastLogMs >= logIntervalMs) {
     logReading();
     lastBatteryPct = M5.Power.getBatteryLevel();
     lastLogMs = millis();
