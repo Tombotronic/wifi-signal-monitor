@@ -4,17 +4,13 @@ An Arduino (C++) sketch for the [M5Stack Cardputer Adv](https://docs.m5stack.com
 
 Joins your home WiFi, logs signal strength (RSSI) to the SD card every minute with a real timestamp (NTP), and serves a live + historical chart over the network.
 
-WiFi credentials are entered on-device via the keyboard (scan and pick an SSID, or type one manually) and stored in flash — never hardcoded.
+The WiFi password is entered on-device via the keyboard (scan and pick an SSID, or type one manually) and stored in flash — never hardcoded. It's saved as plaintext in NVS flash (no ESP32 flash encryption enabled); it never leaves the device over the network, but anyone with physical/USB access to the flash chip can read it back out.
 
-> [!NOTE]
-> The on-device RSSI readout intentionally shifts position slightly between updates — that's screen burn-in protection, not a glitch.
+The on-device RSSI readout intentionally shifts position slightly between updates — that's screen burn-in protection, not a glitch.
 
-> [!NOTE]
-> The WiFi password is saved in plaintext NVS flash (no ESP32 flash encryption enabled). It never leaves the device over the network, but anyone with physical/USB access to the flash chip can read it back out.
+Press **I** at any time to overlay the device's IP address — where the web dashboard is served — for 5 seconds before it reverts to the normal readout.
 
 ![On-device screen showing RSSI in dBm and battery percentage](docs/device.png)
-
-The web dashboard's settings panel shows the device's current IP address and has a "Forget WiFi" option that wipes the saved credentials so you can re-enter new ones.
 
 The dashboard shows the connected SSID, RSSI and battery with Good/Fair/Poor status pills, and a signal history chart with a 1H/3H/6H/12H/24H/All range picker.
 
@@ -41,8 +37,6 @@ esptool.py --chip esp32s3 --port /dev/cu.usbmodemXXXX write_flash 0x0 wifi-signa
 - **Aa** (the blue key, bottom-left area) is Shift — hold it while pressing a letter or symbol key for the uppercase/shifted character (e.g. `1` → `!`). There's no caps-lock toggle; it's held-per-keystroke only.
 - **del** (top-right key) is Backspace.
 - **ok** (the enter key, right side of the third row) confirms the SSID or password field.
-
-Once running, press **I** at any time to overlay the device's IP address on screen for 5 seconds, then it reverts to the normal RSSI/battery readout.
 
 ## Hardware
 
