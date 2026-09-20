@@ -2,7 +2,7 @@
 
 An Arduino (C++) sketch for the [M5Stack Cardputer Adv](https://docs.m5stack.com/en/core/Cardputer-Adv) — a pocket ESP32-S3 dev board with keyboard, screen, mic/speaker, and IMU.
 
-Joins your home WiFi, logs signal strength (RSSI) to the SD card every minute with a real timestamp (NTP), and serves a live + historical chart over the network.
+Joins your home WiFi, logs signal strength (RSSI) to the SD card at an adjustable interval (10s/30s/60s, default 60s) with a real timestamp (NTP), and serves a live + historical chart over the network.
 
 Each network gets its own log file (`/wifi_signal_monitor/<ssid>.csv` on the SD card), so switching WiFi networks doesn't mix their signal history together.
 
@@ -14,7 +14,7 @@ Press **I** at any time to overlay the device's IP address — where the web das
 
 ![On-device screen showing RSSI in dBm and battery percentage](docs/device.png)
 
-The dashboard shows the connected SSID, RSSI and battery with Good/Fair/Poor status pills, and a signal history chart with a 1H/3H/6H/12H/24H/All range picker.
+The dashboard shows the connected SSID, RSSI and battery with Good/Fair/Poor status pills, and a signal history chart with a 1H/3H/6H/12H/24H/All range picker. The gear icon opens a settings panel showing the device's IP address, SD card health (OK / Not available), a logging interval picker, and a "Forget Wi-Fi" button.
 
 The web dashboard can be added to your phone's home screen (iOS "Add to Home Screen") for a fullscreen, no-browser-chrome app-like view with its own icon and title.
 
