@@ -213,11 +213,9 @@ const char* INDEX_HTML = R"HTML(
 
     .chart-box { position: relative; width: 100%; height: 240px; }
 
-    #forgetBtn {
+    #clearLogBtn, #forgetBtn {
       display: block;
       width: 100%;
-      background: rgba(255,59,48,0.08);
-      color: var(--bad);
       border: none;
       padding: 13px 14px;
       border-radius: 14px;
@@ -226,6 +224,8 @@ const char* INDEX_HTML = R"HTML(
       font-weight: 700;
       cursor: pointer;
     }
+    #clearLogBtn { background: var(--track); color: var(--ink); margin-bottom: 10px; }
+    #forgetBtn { background: rgba(255,59,48,0.08); color: var(--bad); }
 
     .footer { text-align: center; color: var(--muted); font-size: 0.78em; margin: 18px 0 4px; }
   </style>
@@ -304,6 +304,7 @@ const char* INDEX_HTML = R"HTML(
         <span class="settings-info-label">SD card</span>
         <span class="settings-info-value" id="sdStatus">-</span>
       </div>
+      <button id="clearLogBtn">Clear Log</button>
       <button id="forgetBtn">Forget Wi-Fi</button>
     </div>
   </div>
@@ -497,6 +498,15 @@ const char* INDEX_HTML = R"HTML(
           body: 'ms=' + e.target.value
         });
       } catch (err) {}
+    };
+
+    document.getElementById('clearLogBtn').onclick = async () => {
+      if (!confirm("Delete the signal history for this network and start fresh? This only clears the currently connected network's log.")) return;
+      try {
+        await fetch('/clearlog', { method: 'POST', headers: { 'X-CSRF-Token': CSRF_TOKEN } });
+      } catch (err) {}
+      historyRaw = [];
+      applyRange();
     };
 
     document.getElementById('forgetBtn').onclick = async () => {

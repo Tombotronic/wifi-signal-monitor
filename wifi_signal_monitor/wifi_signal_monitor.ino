@@ -399,6 +399,25 @@ void handleForget() {
   ESP.restart();
 }
 
+void handleClearLog() {
+  if (server.header("X-CSRF-Token") != csrfToken) {
+    server.send(403, "text/plain", "Forbidden");
+    return;
+  }
+  if (!sdAvailable) {
+    server.send(503, "text/plain", "SD not available");
+    return;
+  }
+  // Only the currently connected network's file - not a full-card wipe.
+  SD.remove(logPath);
+  File f = SD.open(logPath, FILE_WRITE);
+  if (f) {
+    f.println("timestamp,rssi");
+    f.close();
+  }
+  server.send(200, "text/plain", "OK");
+}
+
 void handleIcon() {
   server.send_P(200, "image/png", (const char*)ICON_PNG, ICON_PNG_LEN);
 }
@@ -568,6 +587,7 @@ void setup() {
   server.on("/icon.png", handleIcon);
   server.on("/forget", HTTP_POST, handleForget);
   server.on("/interval", HTTP_POST, handleSetInterval);
+  server.on("/clearlog", HTTP_POST, handleClearLog);
   server.begin();
 
   logReading(); // first reading immediately
