@@ -31,8 +31,6 @@ const char* TZ_INFO = "CET-1CEST,M3.5.0,M10.5.0/3";
 #define SD_MISO 39
 
 const char* LOG_DIR = "/wifi_signal_monitor";
-const char* LOG_PATH = "/wifi_signal_monitor/wifi_log.csv";
-const char* LOG_TMP_PATH = "/wifi_signal_monitor/wifi_log.tmp";
 const unsigned long LOG_INTERVAL_MS = 60UL * 1000UL; // 1 minute
 // At 1 reading/minute a line is ~20 bytes, so this caps the log to roughly
 // 70 days of history and keeps /history (which always streams the whole
@@ -42,6 +40,11 @@ const size_t MAX_LOG_BYTES = 2UL * 1024 * 1024;
 WebServer server(80);
 Preferences wifiPrefs;
 bool sdAvailable = false;
+
+// One log file per SSID, so switching networks doesn't mix their readings
+// together. Set once at boot after WiFi connects (see setLogPathsForSsid).
+String logPath;
+String logTmpPath;
 
 // Random per-boot token, embedded in the served page and required on
 // /forget. Not real authentication (this device has none by design - see
@@ -234,6 +237,36 @@ void promptAndSaveWifiCreds(String &ssid, String &pass) {
   saveWifiCreds(ssid, pass);
 }
 
+// Builds a filesystem-safe name from an SSID: FAT32/exFAT forbid
+// \ / : * ? " < > | and control characters, so those become '_'; leading/
+// trailing dots and spaces are trimmed since FAT strips them anyway.
+// Falls back to "wifi" if nothing usable remains (e.g. an SSID made
+// entirely of forbidden characters).
+String sanitizeForFilename(const String &ssid) {
+  String out;
+  for (size_t i = 0; i < ssid.length(); i++) {
+    char c = ssid[i];
+    if ((uint8_t)c < 0x20) continue;
+    if (strchr("\\/:*?\"<>|", c)) { out += '_'; continue; }
+    out += c;
+  }
+  while (out.length() > 0 && (out[0] == ' ' || out[0] == '.')) out.remove(0, 1);
+  while (out.length() > 0 && (out[out.length() - 1] == ' ' || out[out.length() - 1] == '.')) {
+    out.remove(out.length() - 1);
+  }
+  if (out.length() == 0) out = "wifi";
+  return out;
+}
+
+// Points logPath/logTmpPath at this network's own log file. Called once at
+// boot after WiFi connects (the SSID doesn't change again without a
+// reboot - see promptAndSaveWifiCreds).
+void setLogPathsForSsid(const String &ssid) {
+  String base = String(LOG_DIR) + "/" + sanitizeForFilename(ssid);
+  logPath = base + ".csv";
+  logTmpPath = base + ".tmp";
+}
+
 bool getTimestamp(char* buf, size_t len) {
   struct tm t;
   if (!getLocalTime(&t, 100)) return false;
@@ -248,7 +281,7 @@ bool getTimestamp(char* buf, size_t len) {
 // Drops the oldest half of logged readings, keeping the header line, so
 // the file stops growing forever once it crosses MAX_LOG_BYTES.
 void rotateLog() {
-  File in = SD.open(LOG_PATH, FILE_READ);
+  File in = SD.open(logPath, FILE_READ);
   if (!in) return;
 
   String header = in.readStringUntil('\n');
@@ -261,12 +294,12 @@ void rotateLog() {
 
   size_t dropCount = totalLines / 2;
 
-  in = SD.open(LOG_PATH, FILE_READ);
+  in = SD.open(logPath, FILE_READ);
   if (!in) return;
   in.readStringUntil('\n'); // skip header
 
-  SD.remove(LOG_TMP_PATH);
-  File out = SD.open(LOG_TMP_PATH, FILE_WRITE);
+  SD.remove(logTmpPath);
+  File out = SD.open(logTmpPath, FILE_WRITE);
   if (!out) { in.close(); return; }
   out.println(header);
 
@@ -277,8 +310,8 @@ void rotateLog() {
   in.close();
   out.close();
 
-  SD.remove(LOG_PATH);
-  SD.rename(LOG_TMP_PATH, LOG_PATH);
+  SD.remove(logPath);
+  SD.rename(logTmpPath, logPath);
 }
 
 void logReading() {
@@ -290,7 +323,7 @@ void logReading() {
   lastRssi = WiFi.RSSI();
   strncpy(lastTimestamp, ts, sizeof(lastTimestamp));
 
-  File f = SD.open(LOG_PATH, FILE_APPEND);
+  File f = SD.open(logPath, FILE_APPEND);
   if (!f) return;
   f.printf("%s,%d\n", ts, lastRssi);
   size_t sizeAfterWrite = f.size();
@@ -367,7 +400,7 @@ void handleHistory() {
     server.send(200, "text/csv", "");
     return;
   }
-  File f = SD.open(LOG_PATH, FILE_READ);
+  File f = SD.open(logPath, FILE_READ);
   if (!f) {
     server.send(200, "text/csv", "");
     return;
@@ -397,12 +430,6 @@ void setup() {
     M5.Display.println("Continuing without logging.");
     sdAvailable = false;
     delay(2000);
-  } else if (!SD.exists(LOG_PATH)) {
-    File f = SD.open(LOG_PATH, FILE_WRITE);
-    if (f) {
-      f.println("timestamp,rssi");
-      f.close();
-    }
   }
 
   String ssid, pass;
@@ -430,6 +457,7 @@ void setup() {
 
     if (WiFi.status() == WL_CONNECTED) {
       wifiConnected = true;
+      setLogPathsForSsid(ssid);
       break;
     }
 
@@ -443,6 +471,14 @@ void setup() {
     if (choice.length() > 0 && (choice[0] == 'r' || choice[0] == 'R')) {
       clearWifiCreds();
       haveCreds = false;
+    }
+  }
+
+  if (sdAvailable && !SD.exists(logPath)) {
+    File f = SD.open(logPath, FILE_WRITE);
+    if (f) {
+      f.println("timestamp,rssi");
+      f.close();
     }
   }
 
