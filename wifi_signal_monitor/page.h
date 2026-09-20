@@ -294,6 +294,7 @@ const char* INDEX_HTML = R"HTML(
       <div class="settings-info">
         <span class="settings-info-label">Logging interval</span>
         <select id="intervalSelect" class="interval-select">
+          <option value="5000">5s</option>
           <option value="10000">10s</option>
           <option value="30000">30s</option>
           <option value="60000">60s</option>
