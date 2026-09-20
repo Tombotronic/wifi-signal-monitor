@@ -30,8 +30,9 @@ const char* TZ_INFO = "CET-1CEST,M3.5.0,M10.5.0/3";
 #define SD_CLK  40
 #define SD_MISO 39
 
-const char* LOG_PATH = "/wifi_log.csv";
-const char* LOG_TMP_PATH = "/wifi_log.tmp";
+const char* LOG_DIR = "/wifi_signal_monitor";
+const char* LOG_PATH = "/wifi_signal_monitor/wifi_log.csv";
+const char* LOG_TMP_PATH = "/wifi_signal_monitor/wifi_log.tmp";
 const unsigned long LOG_INTERVAL_MS = 60UL * 1000UL; // 1 minute
 // At 1 reading/minute a line is ~20 bytes, so this caps the log to roughly
 // 70 days of history and keeps /history (which always streams the whole
@@ -390,6 +391,11 @@ void setup() {
   if (!sdAvailable) {
     M5.Display.println("SD mount FAILED");
     M5.Display.println("Continuing without logging.");
+    delay(2000);
+  } else if (!SD.exists(LOG_DIR) && !SD.mkdir(LOG_DIR)) {
+    M5.Display.println("mkdir FAILED");
+    M5.Display.println("Continuing without logging.");
+    sdAvailable = false;
     delay(2000);
   } else if (!SD.exists(LOG_PATH)) {
     File f = SD.open(LOG_PATH, FILE_WRITE);
