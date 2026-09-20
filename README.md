@@ -18,7 +18,7 @@ The dashboard shows the connected SSID, RSSI and battery with Good/Fair/Poor sta
 
 The web dashboard can be added to your phone's home screen (iOS "Add to Home Screen") for a fullscreen, no-browser-chrome app-like view with its own icon and title.
 
-<img src="docs/dashboard.png" alt="Web dashboard showing RSSI chart and battery" width="300">
+<img src="docs/dashboard.png" alt="Web dashboard showing RSSI chart and battery" width="300"> <img src="docs/settings.png" alt="Settings panel showing IP address, SD card status, logging interval, and Forget Wi-Fi" width="300">
 
 Code: [`wifi_signal_monitor`](wifi_signal_monitor)
 
