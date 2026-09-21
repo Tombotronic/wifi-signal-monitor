@@ -7,13 +7,13 @@ const char* INDEX_HTML = R"HTML(
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Cardputer Adv - WiFi Signal</title>
+  <title>Cardputer Adv - Wi-Fi Signal Monitor</title>
 
   <!-- iOS "Add to Home Screen" app behavior (fullscreen, no Safari chrome) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="WiFi Quality">
+  <meta name="apple-mobile-web-app-title" content="Wi-Fi Signal Monitor">
   <meta name="theme-color" content="#f2f2f6">
   <link rel="icon" href="/icon.png">
   <link rel="apple-touch-icon" href="/icon.png">
@@ -258,7 +258,7 @@ const char* INDEX_HTML = R"HTML(
       <span class="badge">CARDPUTER ADV</span>
       <button class="gear-btn" id="settingsBtn" aria-label="Settings">&#9881;</button>
     </div>
-    <h1>Wi-Fi Signal Quality</h1>
+    <h1>Wi-Fi Signal Monitor</h1>
     <div class="ssid-line" id="ssid">-</div>
 
     <div class="card">
@@ -701,9 +701,9 @@ const char* INDEX_HTML = R"HTML(
     };
 
     document.getElementById('forgetBtn').onclick = async () => {
-      if (!confirm('Forget saved WiFi credentials and restart into setup mode?')) return;
+      if (!confirm('Forget saved Wi-Fi credentials and restart into setup mode?')) return;
       await fetch('/forget', { method: 'POST', headers: { 'X-CSRF-Token': CSRF_TOKEN } });
-      document.body.innerHTML = '<h2 style="font-family:-apple-system,sans-serif;color:#1c1c1e;padding:40px">Restarting into WiFi setup mode...</h2>';
+      document.body.innerHTML = '<h2 style="font-family:-apple-system,sans-serif;color:#1c1c1e;padding:40px">Restarting into Wi-Fi setup mode...</h2>';
     };
   </script>
 </body>
