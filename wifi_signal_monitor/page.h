@@ -572,8 +572,8 @@ const char* INDEX_HTML = R"HTML(
     function updateAvgNote(filtered) {
       const avgNote = document.getElementById('avgNote');
       if (!filtered.length) { avgNote.textContent = ''; return; }
-      const avg = filtered.reduce((sum, p) => sum + p.v, 0) / filtered.length;
-      avgNote.textContent = ` | Avg: ${Math.round(avg)} dBm`;
+      const avg = Math.round(filtered.reduce((sum, p) => sum + p.v, 0) / filtered.length);
+      avgNote.innerHTML = ` | Avg: <span style="color:${colorForRssi(avg)}">${avg}</span> dBm`;
     }
 
     // The chart always plots the FULL loaded history now, not just the
