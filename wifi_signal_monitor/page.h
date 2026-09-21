@@ -7,7 +7,7 @@ const char* INDEX_HTML = R"HTML(
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Cardputer Adv - Wi-Fi Signal Monitor</title>
+  <title>Wi-Fi Signal Monitor</title>
 
   <!-- iOS "Add to Home Screen" app behavior (fullscreen, no Safari chrome) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
