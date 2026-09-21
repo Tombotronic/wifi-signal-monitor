@@ -14,7 +14,7 @@ Press **I** at any time to overlay the device's IP address — where the web das
 
 ![On-device screen showing RSSI in dBm and battery percentage](docs/device.png)
 
-The dashboard shows the connected SSID, RSSI and battery with Good/Fair/Poor status pills, and a signal history chart with a 1H/3H/6H/12H/24H/All range picker. The gear icon opens a settings panel showing the device's IP address, SD card health (OK / Not available), a logging interval picker, a "Clear Log" button to reset the current network's history, and a "Forget Wi-Fi" button.
+The dashboard shows the connected SSID, RSSI and battery with Good/Fair/Poor status pills, and a signal history chart with a 1H/3H/6H/12H/24H/All range picker and a color-coded average RSSI for whatever's currently visible. The full log is always loaded, so pinch-to-zoom and drag-to-pan can scroll arbitrarily far back through history, not just within the selected range; tapping the chart toggles a tight y-axis fit around the visible data. The gear icon opens a settings panel showing the device's IP address, SD card health (OK / Not available), a logging interval picker, an "Export CSV" button to download the current network's full log, a "Clear Log" button to reset the current network's history, and a "Forget Wi-Fi" button.
 
 The web dashboard can be added to your phone's home screen (iOS "Add to Home Screen") for a fullscreen, no-browser-chrome app-like view with its own icon and title.
 
