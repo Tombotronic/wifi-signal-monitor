@@ -117,6 +117,20 @@ void generateCsrfToken() {
   csrfToken[8] = '\0';
 }
 
+// Constant-time compare against csrfToken, so a mismatching request can't
+// be distinguished by how long the check took (defense in depth - the real
+// barrier is that an attacker has to have loaded the page to learn the
+// token at all).
+bool csrfTokenValid(const String &provided) {
+  size_t len = strlen(csrfToken);
+  if (provided.length() != len) return false;
+  uint8_t diff = 0;
+  for (size_t i = 0; i < len; i++) {
+    diff |= (uint8_t)provided[i] ^ (uint8_t)csrfToken[i];
+  }
+  return diff == 0;
+}
+
 // Prompts for one line of text on-device, using the physical keyboard.
 // Enter confirms (only once the line has content, unless allowEmpty),
 // backspace edits. When mask is true (password entry) typed characters
@@ -379,15 +393,25 @@ void logReading() {
 #include "page.h"
 #include "icon_png.h"
 
+// Split once at boot around the %CSRF_TOKEN% placeholder (see setup()), so
+// handleRoot() can stream the page in three pieces instead of copying the
+// whole ~700-line HTML into a fresh heap String on every single request -
+// this page is sized once, at boot, not repeatedly during a session that's
+// meant to stay up for weeks.
+String htmlPrefix;
+String htmlSuffix;
+
 void handleRoot() {
   server.sendHeader("Cache-Control", "no-store");
-  String html = INDEX_HTML;
-  html.replace("%CSRF_TOKEN%", csrfToken);
-  server.send(200, "text/html", html);
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/html", "");
+  server.sendContent(htmlPrefix);
+  server.sendContent(csrfToken);
+  server.sendContent(htmlSuffix);
 }
 
 void handleForget() {
-  if (server.header("X-CSRF-Token") != csrfToken) {
+  if (!csrfTokenValid(server.header("X-CSRF-Token"))) {
     server.send(403, "text/plain", "Forbidden");
     return;
   }
@@ -400,7 +424,7 @@ void handleForget() {
 }
 
 void handleClearLog() {
-  if (server.header("X-CSRF-Token") != csrfToken) {
+  if (!csrfTokenValid(server.header("X-CSRF-Token"))) {
     server.send(403, "text/plain", "Forbidden");
     return;
   }
@@ -423,7 +447,7 @@ void handleIcon() {
 }
 
 void handleSetInterval() {
-  if (server.header("X-CSRF-Token") != csrfToken) {
+  if (!csrfTokenValid(server.header("X-CSRF-Token"))) {
     server.send(403, "text/plain", "Forbidden");
     return;
   }
@@ -529,6 +553,7 @@ void setup() {
   while (true) {
     if (!haveCreds) {
       promptAndSaveWifiCreds(ssid, pass);
+      haveCreds = true;
     }
 
     M5.Display.fillScreen(TFT_BLACK);
@@ -580,6 +605,13 @@ void setup() {
   generateCsrfToken();
   static const char* CSRF_HEADER[] = {"X-CSRF-Token"};
   server.collectHeaders(CSRF_HEADER, 1);
+
+  {
+    String full = INDEX_HTML;
+    int tokenPos = full.indexOf("%CSRF_TOKEN%");
+    htmlPrefix = full.substring(0, tokenPos);
+    htmlSuffix = full.substring(tokenPos + strlen("%CSRF_TOKEN%"));
+  }
 
   server.on("/", handleRoot);
   server.on("/data", handleData);

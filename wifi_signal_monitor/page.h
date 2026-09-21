@@ -528,7 +528,24 @@ const char* INDEX_HTML = R"HTML(
         document.getElementById('intervalHeader').textContent = Math.round(d.logIntervalMs / 1000);
         const intervalSelect = document.getElementById('intervalSelect');
         if (document.activeElement !== intervalSelect) {
-          intervalSelect.value = String(d.logIntervalMs);
+          const val = String(d.logIntervalMs);
+          const matched = Array.from(intervalSelect.options).some(o => o.value === val);
+          let extra = intervalSelect.querySelector('option[data-extra]');
+          if (matched) {
+            if (extra) extra.remove();
+          } else {
+            // The device is running an interval outside the fixed presets below
+            // (e.g. set directly via the /interval API) - add a temporary option
+            // so the dropdown reflects reality instead of showing blank/unselected.
+            if (!extra) {
+              extra = document.createElement('option');
+              extra.setAttribute('data-extra', '1');
+              intervalSelect.appendChild(extra);
+            }
+            extra.value = val;
+            extra.textContent = Math.round(d.logIntervalMs / 1000) + 's';
+          }
+          intervalSelect.value = val;
         }
         const sdStatus = document.getElementById('sdStatus');
         sdStatus.textContent = d.sdOk ? 'OK' : 'Not available';
