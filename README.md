@@ -1,6 +1,6 @@
 # WiFi Signal Monitor
 
-A pocket WiFi signal logger for the M5Stack Cardputer Adv. Walk around and watch RSSI update live on-device, then check a web dashboard for the full history per network — no phone app or cloud service needed.
+Walk around and watch WiFi signal strength (RSSI) update live on-device, then dig into the full history per network from a browser — no phone app or cloud service needed.
 
 An Arduino (C++) sketch for the [M5Stack Cardputer Adv](https://docs.m5stack.com/en/core/Cardputer-Adv) — a pocket ESP32-S3 dev board with keyboard, screen, mic/speaker, and IMU.
 
