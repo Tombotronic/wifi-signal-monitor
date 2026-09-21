@@ -19,6 +19,9 @@ const char* INDEX_HTML = R"HTML(
   <link rel="apple-touch-icon" href="/icon.png">
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1"></script>
+  <!-- chartjs-plugin-zoom needs Hammer.js loaded first for pan (drag) and pinch gestures -->
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2/dist/chartjs-plugin-zoom.min.js"></script>
   <style>
     :root {
       --bg: #f2f2f6;
@@ -211,9 +214,28 @@ const char* INDEX_HTML = R"HTML(
     }
     .range-picker button.active { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
 
-    .chart-box { position: relative; width: 100%; height: 240px; }
+    .chart-box { position: relative; width: 100%; height: 240px; overflow: hidden; border-radius: 16px; }
+    /* Without this, iOS Safari intercepts a one-finger drag on the canvas as a
+       page-scroll gesture instead of handing it to the pan/pinch handlers. */
+    #chart { touch-action: none; }
+    .zoom-watermark {
+      position: absolute;
+      top: 4px;
+      right: 10px;
+      z-index: 1;
+      font-size: 2em;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: rgba(0,0,0,0.1);
+      pointer-events: none;
+      line-height: 1;
+      display: none;
+    }
+    .zoom-watermark.active { display: block; }
+    .zoom-hint { text-align: center; color: var(--muted); font-size: 0.72em; margin-top: 8px; }
 
-    #clearLogBtn, #forgetBtn {
+    #exportCsvBtn, #clearLogBtn, #forgetBtn {
       display: block;
       width: 100%;
       border: none;
@@ -224,7 +246,7 @@ const char* INDEX_HTML = R"HTML(
       font-weight: 700;
       cursor: pointer;
     }
-    #clearLogBtn { background: var(--track); color: var(--ink); margin-bottom: 10px; }
+    #exportCsvBtn, #clearLogBtn { background: var(--track); color: var(--ink); margin-bottom: 10px; }
     #forgetBtn { background: rgba(255,59,48,0.08); color: var(--bad); }
 
     .footer { text-align: center; color: var(--muted); font-size: 0.78em; margin: 18px 0 4px; }
@@ -264,7 +286,7 @@ const char* INDEX_HTML = R"HTML(
     <div class="section-head">
       <div class="section-title-group">
         <h2>Signal history</h2>
-        <span class="interval-note">- Interval: <span id="intervalHeader">60</span>s</span>
+        <span class="interval-note">- Interval: <span id="intervalHeader">60</span>s<span id="avgNote"></span></span>
       </div>
       <span class="range-note" id="rangeLabel">last 1h</span>
     </div>
@@ -276,7 +298,11 @@ const char* INDEX_HTML = R"HTML(
       <button data-h="24">24H</button>
       <button data-h="all">All</button>
     </div>
-    <div class="card chart-box"><canvas id="chart"></canvas></div>
+    <div class="card chart-box">
+      <canvas id="chart"></canvas>
+      <span class="zoom-watermark" id="zoomLabel">Zoomed</span>
+    </div>
+    <div class="zoom-hint">Pinch to zoom &middot; drag to pan &middot; tap to zoom Y</div>
 
     <div class="footer">Cardputer Adv &middot; ESP32-S3</div>
   </div>
@@ -304,6 +330,7 @@ const char* INDEX_HTML = R"HTML(
         <span class="settings-info-label">SD card</span>
         <span class="settings-info-value" id="sdStatus">-</span>
       </div>
+      <button id="exportCsvBtn">Export CSV</button>
       <button id="clearLogBtn">Clear Log</button>
       <button id="forgetBtn">Forget Wi-Fi</button>
     </div>
@@ -322,8 +349,12 @@ const char* INDEX_HTML = R"HTML(
         const { ctx, chartArea, scales: { y } } = chart;
         if (!chartArea) return;
         const { left, right, top, bottom } = chartArea;
-        const goodY = y.getPixelForValue(-60);
-        const okY = y.getPixelForValue(-75);
+        // The y-axis now auto-scales to whatever's visible, so a threshold can
+        // fall outside the current range - clamp the fill so it never bleeds
+        // past the chart area, and skip the dashed line/label when that
+        // threshold isn't actually in view.
+        const goodY = Math.max(top, Math.min(bottom, y.getPixelForValue(-60)));
+        const okY = Math.max(top, Math.min(bottom, y.getPixelForValue(-75)));
 
         ctx.save();
         ctx.fillStyle = 'rgba(52,199,89,0.08)';
@@ -335,21 +366,90 @@ const char* INDEX_HTML = R"HTML(
 
         ctx.setLineDash([4, 4]);
         ctx.lineWidth = 1;
-        ctx.strokeStyle = 'rgba(52,199,89,0.6)';
-        ctx.beginPath(); ctx.moveTo(left, goodY); ctx.lineTo(right, goodY); ctx.stroke();
-        ctx.strokeStyle = 'rgba(255,59,48,0.6)';
-        ctx.beginPath(); ctx.moveTo(left, okY); ctx.lineTo(right, okY); ctx.stroke();
-        ctx.setLineDash([]);
-
         ctx.font = '10px -apple-system, sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillStyle = '#248a3d';
-        ctx.fillText('-60 dBm', right - 4, goodY - 4);
-        ctx.fillStyle = '#d70015';
-        ctx.fillText('-75 dBm', right - 4, okY + 12);
+        if (y.min <= -60 && -60 <= y.max) {
+          ctx.strokeStyle = 'rgba(52,199,89,0.6)';
+          ctx.beginPath(); ctx.moveTo(left, goodY); ctx.lineTo(right, goodY); ctx.stroke();
+          ctx.fillStyle = '#248a3d';
+          ctx.fillText('-60 dBm', right - 4, goodY - 4);
+        }
+        if (y.min <= -75 && -75 <= y.max) {
+          ctx.strokeStyle = 'rgba(255,59,48,0.6)';
+          ctx.beginPath(); ctx.moveTo(left, okY); ctx.lineTo(right, okY); ctx.stroke();
+          ctx.fillStyle = '#d70015';
+          ctx.fillText('-75 dBm', right - 4, okY + 12);
+        }
+        ctx.setLineDash([]);
         ctx.restore();
       }
     };
+
+    const zoomLabel = document.getElementById('zoomLabel');
+    let currentFiltered = []; // the full loaded history currently plotted (see getVisibleSlice for what's on screen)
+    let yFitted = false; // true after a tap has fitted the y-axis, until the next reset/range change
+
+    function resetYScale() {
+      chart.options.scales.y.min = -100;
+      chart.options.scales.y.max = -20;
+    }
+
+    // "ZOOMED" reflects only the tap-to-fit y-axis state now. Panning/pinching
+    // around in time is normal navigation across the full loaded history, not
+    // a special state worth flagging - every range button other than "All"
+    // narrows the initial view via zoomScale(), which would otherwise make
+    // isZoomedOrPanned() true almost all the time.
+    function updateZoomLabel() {
+      zoomLabel.classList.toggle('active', yFitted);
+    }
+
+    // The data points currently visible within the chart's x-axis window
+    // (currentFiltered always holds the full loaded history now - this is
+    // just whatever slice of it is scrolled/zoomed into view right now).
+    function getVisibleSlice() {
+      if (!currentFiltered.length) return [];
+      const xMin = chart.scales.x.min ?? 0;
+      const xMax = chart.scales.x.max ?? currentFiltered.length - 1;
+      const lo = Math.max(0, Math.round(xMin));
+      const hi = Math.min(currentFiltered.length - 1, Math.round(xMax));
+      return lo <= hi ? currentFiltered.slice(lo, hi + 1) : currentFiltered;
+    }
+
+    // Fits the y-axis to whatever's actually visible on screen right now,
+    // rather than the full -100..-20 dBm range - makes small fluctuations
+    // readable instead of squashed into a flat-looking line. Only runs when
+    // triggered by tapping the chart (or while tracking after that, on pan/zoom).
+    function autoScaleY() {
+      const visible = getVisibleSlice();
+      if (!visible.length) return;
+      const values = visible.map(p => p.v);
+      const dataMin = Math.min(...values);
+      const dataMax = Math.max(...values);
+
+      const pad = 3;
+      let yMin = Math.max(-100, dataMin - pad);
+      let yMax = Math.min(-20, dataMax + pad);
+      if (yMax - yMin < 10) {
+        const mid = (yMin + yMax) / 2;
+        yMin = Math.max(-100, mid - 10);
+        yMax = Math.min(-20, mid + 10);
+      }
+      chart.options.scales.y.min = yMin;
+      chart.options.scales.y.max = yMax;
+      chart.update('none');
+    }
+
+    // Keeps the header average, y-fit, and "ZOOMED" label in sync with
+    // whatever's currently scrolled/zoomed into view.
+    function updateVisibleStats() {
+      updateAvgNote(getVisibleSlice());
+      if (yFitted) autoScaleY();
+      updateZoomLabel();
+    }
+
+    function onZoomOrPanComplete() {
+      updateVisibleStats();
+    }
 
     const ctx = document.getElementById('chart').getContext('2d');
     const chart = new Chart(ctx, {
@@ -361,11 +461,41 @@ const char* INDEX_HTML = R"HTML(
         animation: false,
         scales: {
           x: { ticks: { color: '#8a8a8e', maxTicksLimit: 6, font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
-          y: { min: -100, max: -20, ticks: { color: '#8a8a8e', stepSize: 20 }, grid: { color: 'rgba(0,0,0,0.05)' } }
+          // min/max are recalculated per render by autoScaleY() to fit whatever's
+          // visible - these are just the pre-data-load fallback.
+          y: { min: -100, max: -20, ticks: { color: '#8a8a8e', maxTicksLimit: 6 }, grid: { color: 'rgba(0,0,0,0.05)' } }
         },
-        plugins: { legend: { display: false } }
+        plugins: {
+          legend: { display: false },
+          zoom: {
+            pan: { enabled: true, mode: 'x', onPanComplete: onZoomOrPanComplete },
+            zoom: {
+              pinch: { enabled: true },
+              mode: 'x',
+              onZoomComplete: onZoomOrPanComplete
+            }
+          }
+        }
       },
       plugins: [thresholdBands]
+    });
+
+    // Tapping the chart (a click with no real movement between press and
+    // release) toggles the y-axis fit - dragging to pan shouldn't also
+    // trigger it, so a real pointerdown->click is only treated as a tap
+    // when the pointer barely moved.
+    let tapStart = null;
+    ctx.canvas.addEventListener('pointerdown', (e) => {
+      tapStart = { x: e.clientX, y: e.clientY };
+    });
+    ctx.canvas.addEventListener('click', (e) => {
+      if (!tapStart) return;
+      const moved = Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y);
+      tapStart = null;
+      if (moved > 6) return; // was a drag/pan, not a tap
+      yFitted = !yFitted;
+      if (!yFitted) { resetYScale(); chart.update(); }
+      updateVisibleStats();
     });
 
     function colorForRssi(rssi) {
@@ -439,20 +569,46 @@ const char* INDEX_HTML = R"HTML(
       return [time, date];
     }
 
+    function updateAvgNote(filtered) {
+      const avgNote = document.getElementById('avgNote');
+      if (!filtered.length) { avgNote.textContent = ''; return; }
+      const avg = filtered.reduce((sum, p) => sum + p.v, 0) / filtered.length;
+      avgNote.textContent = ` | Avg: ${Math.round(avg)} dBm`;
+    }
+
+    // The chart always plots the FULL loaded history now, not just the
+    // selected range - a range button only picks where the initial view
+    // starts. That's what makes drag-to-pan able to reach further back than
+    // "now minus N hours": the earlier points are already loaded, just
+    // scrolled out of the initial view rather than absent from the chart.
     function applyRange() {
+      chart.resetZoom();
       if (!historyRaw.length) {
+        currentFiltered = [];
         chart.data.labels = [];
         chart.data.datasets[0].data = [];
+        if (!yFitted) resetYScale();
         chart.update();
+        updateVisibleStats();
         return;
       }
-      const lastT = historyRaw[historyRaw.length - 1].t;
-      const cutoff = rangeHours === 'all' ? null : new Date(lastT.getTime() - rangeHours * 3600 * 1000);
-      const filtered = cutoff ? historyRaw.filter(p => p.t >= cutoff) : historyRaw;
-      chart.data.labels = filtered.map(p => fmtTime(p.t));
-      chart.data.datasets[0].data = filtered.map(p => p.v);
+      currentFiltered = historyRaw;
+      chart.data.labels = historyRaw.map(p => fmtTime(p.t));
+      chart.data.datasets[0].data = historyRaw.map(p => p.v);
+      if (!yFitted) resetYScale();
       chart.update();
+
+      if (rangeHours !== 'all') {
+        const lastT = historyRaw[historyRaw.length - 1].t;
+        const cutoff = new Date(lastT.getTime() - rangeHours * 3600 * 1000);
+        let startIdx = historyRaw.findIndex(p => p.t >= cutoff);
+        if (startIdx === -1) startIdx = historyRaw.length - 1;
+        chart.zoomScale('x', { min: startIdx, max: historyRaw.length - 1 }, 'none');
+      }
+      updateVisibleStats();
     }
+
+    let historyLoaded = false;
 
     async function loadHistory() {
       try {
@@ -467,7 +623,20 @@ const char* INDEX_HTML = R"HTML(
         // so raw log order isn't guaranteed strictly increasing - sort so
         // the chart never draws a line running backwards.
         historyRaw.sort((a, b) => a.t - b.t);
-        applyRange();
+        if (!historyLoaded) {
+          // First load: jump to the selected range's initial window.
+          historyLoaded = true;
+          applyRange();
+        } else {
+          // Later refreshes: just refresh the data in place. Don't call
+          // applyRange() here - it'd reset pan/zoom back to "now" every 30s,
+          // which would yank you out of wherever in history you'd scrolled to.
+          currentFiltered = historyRaw;
+          chart.data.labels = historyRaw.map(p => fmtTime(p.t));
+          chart.data.datasets[0].data = historyRaw.map(p => p.v);
+          chart.update();
+          updateVisibleStats();
+        }
       } catch (e) {}
       setTimeout(loadHistory, 30000);
     }
@@ -498,6 +667,28 @@ const char* INDEX_HTML = R"HTML(
           body: 'ms=' + e.target.value
         });
       } catch (err) {}
+    };
+
+    function toCsvTs(d) {
+      const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    }
+
+    document.getElementById('exportCsvBtn').onclick = () => {
+      if (!historyRaw.length) { alert('No history to export yet.'); return; }
+      const rows = historyRaw.map(p => `${toCsvTs(p.t)},${p.v}`);
+      const csv = 'timestamp,rssi_dbm\n' + rows.join('\n') + '\n';
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ssid = (document.getElementById('ssid').textContent || 'wifi').replace(/[^a-z0-9]+/gi, '_');
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `wifi-signal-${ssid}-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     };
 
     document.getElementById('clearLogBtn').onclick = async () => {
