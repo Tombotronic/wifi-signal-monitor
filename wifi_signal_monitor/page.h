@@ -330,6 +330,10 @@ const char* INDEX_HTML = R"HTML(
         <span class="settings-info-label">SD card</span>
         <span class="settings-info-value" id="sdStatus">-</span>
       </div>
+      <div class="settings-info">
+        <span class="settings-info-label">Firmware</span>
+        <span class="settings-info-value" id="fwVersion">-</span>
+      </div>
       <button id="exportCsvBtn">Export CSV</button>
       <button id="clearLogBtn">Clear Log</button>
       <button id="forgetBtn">Forget Wi-Fi</button>
@@ -525,6 +529,7 @@ const char* INDEX_HTML = R"HTML(
         document.getElementById('ts').textContent = formatTs(d.ts);
         document.getElementById('ssid').textContent = d.ssid;
         document.getElementById('ipAddr').textContent = d.ip;
+        document.getElementById('fwVersion').textContent = 'v' + d.version;
         document.getElementById('intervalHeader').textContent = Math.round(d.logIntervalMs / 1000);
         const intervalSelect = document.getElementById('intervalSelect');
         if (document.activeElement !== intervalSelect) {

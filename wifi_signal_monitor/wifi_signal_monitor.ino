@@ -14,6 +14,7 @@
 // WiFi/WebServer/SD/SPI/time/Preferences are built into the ESP32 Arduino core.
 
 #include "M5Cardputer.h"
+#include "version.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <SD.h>
@@ -503,6 +504,7 @@ void handleData() {
   json += logIntervalMs;
   json += ",\"sdOk\":";
   json += (sdAvailable && sdWriteOk) ? "true" : "false";
+  json += ",\"version\":\"" FIRMWARE_VERSION "\"";
   json += "}";
 
   server.send(200, "application/json", json);
@@ -702,6 +704,10 @@ void drawIp() {
   M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
   M5.Display.setTextSize(0.5f);
   M5.Display.drawString(ip.c_str(), cx, cy);
+
+  M5.Display.setTextSize(UNIT_SCALE);
+  M5.Display.setTextColor(M5.Display.color565(150, 150, 150), TFT_BLACK);
+  M5.Display.drawString("v" FIRMWARE_VERSION, cx, cy + 30);
 
   M5.Display.setTextSize(NUM_SCALE);
   M5.Display.setTextDatum(middle_left);

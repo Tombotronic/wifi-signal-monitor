@@ -52,4 +52,4 @@ esptool.py --chip esp32s3 --port /dev/cu.usbmodemXXXX write_flash 0x0 wifi-signa
 
 ## Dev platform
 
-Arduino IDE (or `arduino-cli`) with the [M5Cardputer library](https://github.com/m5stack/M5Cardputer), which pulls in M5Unified/M5GFX. Board: `esp32:esp32:esp32s3`.
+Arduino IDE (or `arduino-cli`) with the [M5Cardputer library](https://github.com/m5stack/M5Cardputer), which pulls in M5Unified/M5GFX. Board: `esp32:esp32:m5stack_cardputer` with Flash Size 8MB and the default 8MB partition scheme (`esp32:esp32:m5stack_cardputer:CDCOnBoot=default,FlashSize=8M,PartitionScheme=default_8MB`), esp32 core 3.2.0. Release builds are made by GitHub Actions on every `vX.Y.Z` tag — see [`CHANGELOG.md`](CHANGELOG.md).
