@@ -33,7 +33,7 @@ pip install esptool   # if you don't already have it
 esptool.py --chip esp32s3 --port /dev/cu.usbmodemXXXX write_flash 0x0 wifi-signal-monitor-vX.Y.Z.bin
 ```
 
-(On Windows/Linux the port looks like `COM3` or `/dev/ttyACM0`.) Insert a FAT32-formatted microSD card before powering on for RSSI logging + history; without one, the device shows a warning and continues on to WiFi setup and the live dashboard, just without logging or history. First boot walks you through WiFi setup on the device's own keyboard.
+(On Windows/Linux the port looks like `COM3` or `/dev/ttyACM0`.) Insert a FAT32-formatted microSD card before powering on for RSSI logging + history; without one, the device shows a warning and continues on to WiFi setup and the live dashboard, just without logging or history. First boot walks you through WiFi setup on the device's own keyboard. The `.bin` is a full flash image, so flashing it (including an upgrade) resets the saved WiFi credentials and logging interval; the logs on the SD card are untouched.
 
 ### Typing on the device's keyboard
 
